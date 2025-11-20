@@ -16,12 +16,12 @@ app.add_middleware(
 
 class PromptRequest(BaseModel):
     llm: Literal["gpt-4o", "gpt-4.1", "claude-3.5", "gemini-1.5", "llama-3.1", "mistral-large"] = Field(
-        ..., description="Target model identifier"
+        ..., description="Identificador do modelo alvo"
     )
-    project_name: str = Field(..., description="Name of the website or brand")
+    project_name: str = Field(..., description="Nome do site ou marca")
     site_type: Literal[
         "landing", "marketing", "portfolio", "blog", "docs", "saas", "ecommerce"
-    ] = Field(..., description="Type of website")
+    ] = Field(..., description="Tipo de site")
     tone: Literal[
         "professional", "friendly", "playful", "minimal", "luxury", "technical"
     ] = "professional"
@@ -31,15 +31,15 @@ class PromptRequest(BaseModel):
     pages: List[str] = []
     seo_keywords: List[str] = []
     constraints: Optional[str] = ""
-    preferred_stack: List[str] = []  # e.g. ["React", "Tailwind", "Next.js"]
+    preferred_stack: List[str] = []  # ex.: ["React", "Tailwind", "Next.js"]
     deliverables: List[str] = [
-        "site map",
-        "content outline",
-        "wireframe description",
-        "component list",
-        "responsive behavior",
-        "SEO meta tags",
-        "accessibility checklist",
+        "mapa do site",
+        "roteiro de conteúdo",
+        "descrição de wireframe",
+        "lista de componentes",
+        "comportamento responsivo",
+        "metas de SEO",
+        "checklist de acessibilidade",
     ]
     output_format: Literal["markdown", "plain", "json"] = "markdown"
 
@@ -49,83 +49,85 @@ class PromptResponse(BaseModel):
 
 @app.get("/")
 def read_root():
-    return {"message": "AI Prompt Assistant Backend"}
+    return {"message": "Backend do Assistente de Prompts de IA"}
 
 @app.get("/api/hello")
 def hello():
-    return {"message": "Hello from the backend API!"}
+    return {"message": "Olá da API do backend!"}
 
 @app.get("/test")
 def test_database():
     response = {
-        "backend": "✅ Running",
-        "database": "❌ Not Available",
+        "backend": "✅ Em execução",
+        "database": "❌ Indisponível",
         "database_url": None,
         "database_name": None,
-        "connection_status": "Not Connected",
+        "connection_status": "Não conectado",
         "collections": []
     }
     try:
         from database import db  # type: ignore
         if db is not None:
-            response["database"] = "✅ Available"
-            response["database_url"] = "✅ Configured"
-            response["database_name"] = getattr(db, "name", "✅ Connected")
-            response["connection_status"] = "Connected"
+            response["database"] = "✅ Disponível"
+            response["database_url"] = "✅ Configurada"
+            response["database_name"] = getattr(db, "name", "✅ Conectado")
+            response["connection_status"] = "Conectado"
             try:
                 collections = db.list_collection_names()
                 response["collections"] = collections[:10]
-                response["database"] = "✅ Connected & Working"
+                response["database"] = "✅ Conectado e funcionando"
             except Exception as e:  # pragma: no cover
-                response["database"] = f"⚠️  Connected but Error: {str(e)[:50]}"
+                response["database"] = f"⚠️  Conectado, mas erro: {str(e)[:50]}"
         else:
-            response["database"] = "⚠️  Available but not initialized"
+            response["database"] = "⚠️  Disponível, porém não inicializado"
     except ImportError:
-        response["database"] = "❌ Database module not found (optional)"
+        response["database"] = "❌ Módulo de banco de dados não encontrado (opcional)"
     except Exception as e:  # pragma: no cover
-        response["database"] = f"❌ Error: {str(e)[:50]}"
+        response["database"] = f"❌ Erro: {str(e)[:50]}"
 
     import os as _os
-    response["database_url"] = "✅ Set" if _os.getenv("DATABASE_URL") else "❌ Not Set"
-    response["database_name"] = "✅ Set" if _os.getenv("DATABASE_NAME") else "❌ Not Set"
+    response["database_url"] = "✅ Definida" if _os.getenv("DATABASE_URL") else "❌ Não definida"
+    response["database_name"] = "✅ Definido" if _os.getenv("DATABASE_NAME") else "❌ Não definido"
     return response
 
-# --- Prompt generation logic ---
+# --- Lógicas de geração de prompt ---
 MODEL_STYLES = {
     "gpt-4o": {
-        "system": "You are a senior product + UX + frontend architect. Produce precise, concise, implementation-ready instructions.",
-        "notes": "Favor bullet points and code-ready sections."
+        "system": "Você é um(a) arquiteto(a) sênior de produto + UX + frontend. Produza instruções precisas, concisas e prontas para implementação.",
+        "notes": "Prefira listas objetivas e seções prontas para código."
     },
     "gpt-4.1": {
-        "system": "You are a meticulous technical writer and UI engineer.",
-        "notes": "Prefer structured lists and explicit acceptance criteria."
+        "system": "Você é um(a) redator(a) técnico(a) e engenheiro(a) de UI meticuloso(a).",
+        "notes": "Prefira listas estruturadas e critérios de aceite explícitos."
     },
     "claude-3.5": {
-        "system": "You are thoughtful and reflective. Explain trade-offs and propose alternatives.",
-        "notes": "Provide checklists and reasoning sections."
+        "system": "Você é reflexivo(a) e ponderado(a). Explique trade-offs e proponha alternativas.",
+        "notes": "Inclua checklists e seções de raciocínio."
     },
     "gemini-1.5": {
-        "system": "You are multi-modal product designer + engineer.",
-        "notes": "If images are referenced, describe them. Keep steps explicit."
+        "system": "Você é designer de produto multimodal + engenheiro(a).",
+        "notes": "Se houver imagens, descreva-as. Mantenha passos explícitos."
     },
     "llama-3.1": {
-        "system": "You are an open-source web architect. Be explicit and deterministic.",
-        "notes": "Avoid ambiguity; include clear file/component breakdowns."
+        "system": "Você é um(a) arquiteto(a) web open-source. Seja explícito(a) e determinístico(a).",
+        "notes": "Evite ambiguidades; inclua divisão clara de arquivos/componentes."
     },
     "mistral-large": {
-        "system": "You are a pragmatic frontend tech lead.",
-        "notes": "Use concise instructions with numbered steps."
+        "system": "Você é um(a) tech lead pragmático(a) de frontend.",
+        "notes": "Use instruções concisas com passos numerados."
     },
 }
 
+
 def bjoin(items: List[str]) -> str:
-    return "\n".join([f"- {i}" for i in items]) if items else "- (none)"
+    return "\n".join([f"- {i}" for i in items]) if items else "- (nenhum)"
+
 
 @app.post("/api/generate-prompt", response_model=PromptResponse)
 def generate_prompt(req: PromptRequest):
     style = MODEL_STYLES.get(req.llm)
     if not style:
-        raise HTTPException(status_code=400, detail="Unsupported model")
+        raise HTTPException(status_code=400, detail="Modelo não suportado")
 
     features = bjoin(req.features)
     pages = bjoin(req.pages)
@@ -133,45 +135,45 @@ def generate_prompt(req: PromptRequest):
     stack = bjoin(req.preferred_stack)
     deliverables = bjoin(req.deliverables)
 
-    header = f"Model: {req.llm}\nProject: {req.project_name}\nType: {req.site_type}\nTone: {req.tone}\n"
+    header = f"Modelo: {req.llm}\nProjeto: {req.project_name}\nTipo: {req.site_type}\nTom: {req.tone}\n"
 
     core = f"""
-[SYSTEM]
+[SISTEMA]
 {style['system']}
-Additional notes: {style['notes']}
+Notas adicionais: {style['notes']}
 
-[OBJECTIVE]
-Design and outline a complete website for "{req.project_name}".
+[OBJETIVO]
+Projete e descreva um site completo para "{req.project_name}".
 
-[CONTEXT]
-Target audience: {req.target_audience or 'General web audience'}
-Brand colors or theme: {req.brand_colors or 'To be proposed'}
-Constraints: {req.constraints or 'None specified'}
-Preferred stack: \n{stack}
+[CONTEXTO]
+Público-alvo: {req.target_audience or 'Público geral da web'}
+Cores/tema da marca: {req.brand_colors or 'A definir'}
+Restrições: {req.constraints or 'Nenhuma especificada'}
+Stack preferida: \n{stack}
 
-[WEBSITE TYPE]
+[TIPO DE SITE]
 {req.site_type}
 
-[FEATURES]
+[FUNCIONALIDADES]
 {features}
 
-[PAGES]
+[PÁGINAS]
 {pages}
 
 [SEO]
-Primary keywords:\n{keywords}
+Palavras-chave principais:\n{keywords}
 
-[DELIVERABLES]
-Produce the following, optimized for the selected model:\n{deliverables}
+[ENTREGÁVEIS]
+Produza o seguinte, otimizando para o modelo selecionado:\n{deliverables}
 
-[STYLE GUIDE]
-- Voice and tone: {req.tone}
-- Accessibility: WCAG 2.2 AA; include landmarks, color contrast, keyboard nav.
-- Performance: lazy-load media, compress assets, minimal JavaScript where possible.
+[GUIA DE ESTILO]
+- Voz e tom: {req.tone}
+- Acessibilidade: WCAG 2.2 AA; inclua landmarks, contraste de cores e navegação por teclado.
+- Desempenho: lazy-load de mídia, compressão de assets, mínimo de JavaScript quando possível.
 
-[OUTPUT]
-Preferred output format: {req.output_format}
-Provide sections with clear headings. Include copy examples, component names, and acceptance criteria for each page. Where relevant, provide Tailwind utility examples.
+[SAÍDA]
+Formato de saída preferido: {req.output_format}
+Forneça seções com títulos claros. Inclua exemplos de copy, nomes de componentes e critérios de aceite para cada página. Quando relevante, forneça exemplos de utilitários do Tailwind.
 """.strip()
 
     return PromptResponse(prompt=f"{header}\n\n{core}", llm=req.llm)
